@@ -8,104 +8,163 @@
 #include "sapi.h"
 #include "ejercicio1.h"
 
-const gpioMap_t ledSequence[] = {LEDB, LED1, LED2, LED3};
-const uint8_t lastLed = sizeof(ledSequence)/sizeof(gpioMap_t);
+typedef struct{
+	const gpioMap_t * ptrLed;
+	const gpioMap_t const* ptrPrimerLed;
+	const uint8_t const* ptrUltimoLed;
+} controlSecuencia_t;
 
-const gpioMap_t keyArray[] = {TEC1, TEC2, TEC3, TEC4};
+/*Arreglo del tipo gpioMap_t para la secuencia de leds */
+const gpioMap_t ledSequence[] = { LEDB, LED1, LED2, LED3 };
 
+/* Cantidad de elementos del arreglo ledSequence */
+const uint8_t lastLed = sizeof ( ledSequence ) / sizeof ( gpioMap_t );
+
+/*Arreglo del tipo gpioMap_t para teclas */
+const gpioMap_t keyArray[] = { TEC1, TEC2, TEC3, TEC4 };
+
+/* FUNCION PRINCIPAL */
 int main( void )
 {
-	delay_t ledDelay;
-	bool_t invertSequence = false;
 
-    // ----- Setup -----------------------------------
+	// INICIALIZAR Y CONFIGURAR PLATAFORMA
     boardInit();
 
-    if((TICK_RATE < TICK_RATE_MIN) || (TICK_RATE > TICK_RATE_MAX))  blinkError();
-    if(!tickConfig(TICK_RATE))  blinkError();
+    // DEFINICION DE VARIABLES
+    /* Variables del tipo tick para retardos */
+    delay_t ledDelay;
+    /* Varibles del tipo booleano */
+    bool_t invertSequence = false;
 
-    delayConfig(&ledDelay, DELAY1);
+    /* Verificación TICK_RATE rango permitido de tiempo: 1 a 50 ms */
+    if ( ( TICK_RATE < TICK_RATE_MIN ) || ( TICK_RATE > TICK_RATE_MAX ) )  blinkError( ERROR_TIME );
+    if ( !tickConfig ( TICK_RATE ) )  blinkError( ERROR_TIME );
+
+    /*Configuración retardo no bloqueante 150 ms */
+    delayConfig ( &ledDelay, DELAY150 );
 
    // ----- Repeat for ever -------------------------
     while( true ) {
+
+    	/* Lectura de pulsadores de secuencia */
     	if(readKey(KEY1)) invertSequence = false;
     	else if(readKey(KEY4)) invertSequence = true;
-    	if(readKey(KEY2)) delayWrite(&ledDelay, DELAY1);
-    	else if(readKey(KEY3)) delayWrite(&ledDelay, DELAY2);
 
+    	/* Lectura de pulsadores de retardo no bloqueante */
+    	if(readKey(KEY2)) delayWrite(&ledDelay, DELAY150);
+    	else if(readKey(KEY3)) delayWrite(&ledDelay, DELAY750);
+
+    	/* Captura de errores de secuencia */
     	if(delayRead(&ledDelay)){
-    		if(!ledSequenceOn(ledSequence, invertSequence)) blinkError();
+    		if(!ledSequenceOn(ledSequence, invertSequence)) blinkError ( ERROR_SEQ );
     	}
     }
 
     return 0;
 }
 
-bool_t ledsOff()
+// FUNCIÓN DE APAGADO DE LEDS
+bool_t ledsOff ( )
 {
 	int8_t i = 0;
 
-	for(i = 0; i < lastLed; i++){
-		if(!gpioWrite(ledSequence[i], OFF)) return FALSE;
+	for ( i = 0; i < lastLed; i++ ) {
+		/* Se apaga cada led disponible en la placa */
+		if ( !gpioWrite ( ledSequence[i], OFF ) ) return FALSE;
+		/* Se verifica el apagado de leds, leyendo el estado GPIO de cada leds */
+		if ( gpioRead ( ledSequence[i] ) == ON ) return FALSE;
 	}
 
 	return TRUE;
 }
 
-bool_t ledOn(gpioMap_t led)
+// FUNCIÓN DE ENCENDIDO DE LEDS
+bool_t ledOn ( gpioMap_t led )
 {
-	if(!gpioWrite(led, ON)) return FALSE;
+	/* Se apaga cada led disponible en la placa */
+	if ( !gpioWrite ( led, ON ) ) return FALSE;
+	/* Se verifica el apagado de leds, leyendo el estado GPIO de cada leds */
+	if ( gpioRead ( led ) == OFF ) return FALSE;
 	else return TRUE;
 }
 
-bool_t ledSequenceOn(const gpioMap_t* _ledSequence, bool_t invert)
+// FUNCIÓN DE SECUENCIA DE LEDS
+bool_t ledSequenceOn ( const gpioMap_t* _ledSequence, bool_t invert )
 {
 	static int8_t ledIndex = 0;
 
-	if(invert) ledIndex--;
+	/* Secuencia 2: LED3 -> LED2 -> LED1 -> LEDA -> LED3 -> ... */
+	if ( invert ) ledIndex--;
+	/* Secuencia 1: LEDA -> LED1 -> LED2 -> LED3 -> LEDA -> ... */
 	else ledIndex++;
-	if(ledIndex >= lastLed) ledIndex = 0;
-	else if(ledIndex < 0) ledIndex = lastLed - 1;
 
-	if(!ledsOff()) return FALSE;
-	if(!ledOn(_ledSequence[ledIndex])) return FALSE;
+	/* ledIndex no debe exceder limite superior lastLed */
+	if ( ledIndex >= lastLed ) ledIndex = 0;
+	/* ledIndex no debe exceder limite inferior 0 */
+	else if ( ledIndex < 0 ) ledIndex = lastLed - 1;
+
+	/* Función de apagado de leds y captura de errores de apagado */
+	if ( !ledsOff() ) blinkError ( ERROR_OFF );
+
+	/* Funcion de encendido de leds y captura de errores de encendido */
+	if ( !ledOn ( _ledSequence[ledIndex] ) ) blinkError ( ERROR_ON );
 
 	return TRUE;
 }
 
-void blinkError()
+// FUNCIÓN INDICACIÓN DE ERROR
+// SE PASA POR ARGUMENTO DIFERENTES TIEMPOS SEGUN TIPO DE ERROR
+void blinkError ( tick_t delayError )
 {
-	while(true){
-		gpioToggle(LEDR);
-		delay(500);
+	/* El programa se queda aca PARA SIEMPRE */
+	while ( true ) {
+		/* Se apagan todos los leds */
+		ledsOff ( );
+		/* Parpadeo de led Rojo */
+		gpioToggle ( LEDR );
+		/* Retardo bloqueante segun tipo de error */
+		delay ( delayError );
 	}
 }
 
-bool_t readKey(uint8_t keyIndex)
+//FUNCION ANTIREBOTE PARA LECTURA DE TECLAS
+bool_t readKey ( uint8_t keyIndex )
 {
+	//DEFINICION DE VARIABLES LOCALES
+	/* */
 	static dbSt_t debounceState[LAST_KEY] = {WAITING, WAITING, WAITING, WAITING};
+	/* */
 	static delay_t debounceDelay[LAST_KEY];
-	bool_t ret = false;
+	/* */
+	bool_t keyPressed = false;
 
+	/* Cambio del estado de las teclas */
 	switch(debounceState[keyIndex]){
 
+	/* WAITING: */
+	/* Si fue presionada alguna tecla, pasa al estado de DEBOUNCING */
 	case WAITING:
+		/* Se consulta por la tecla presionada */
 		if(gpioRead(keyArray[keyIndex]) == PRESSED){
+			/* Cambio de estado de tecla */
 			debounceState[keyIndex] = DEBOUNCING;
+			/* Se configura tiempo de antirrebote */
 			delayInit(&debounceDelay[keyIndex], DEBOUNCE_TIME);
 		}
 		break;
 
+	/* DEBOUNCING: */
+	/* Comfirma si se presiono una tecla, vuelve al estado de WAITING */
 	case DEBOUNCING:
+		/* Se consulta si se cumplio el tiempo de antirrebote */
 		if(delayRead(&debounceDelay[keyIndex])){
-			if(gpioRead(keyArray[keyIndex]) == PRESSED){
-				debounceState[keyIndex] = WAITING;
-				ret = true;
-			}
-			else debounceState[keyIndex] = WAITING;
+			/* Se pregunta por la tecla presionada */
+			if(gpioRead(keyArray[keyIndex]) == PRESSED) keyPressed = TRUE;
+			/* Cambio de estado de tecla */
+			debounceState[keyIndex] = WAITING;
 		}
 		break;
 	}
 
-	return ret;
+	return keyPressed;
 }
