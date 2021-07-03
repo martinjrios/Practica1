@@ -7,7 +7,7 @@
 #ifndef __EJERCICIO1_H__
 #define __EJERCICIO1_H__
 
-#define TICK_RATE		100 // Default 1ms
+#define TICK_RATE		1 // Default 1ms
 
 #define TICK_RATE_MIN	1  // ms
 #define TICK_RATE_MAX	50 // ms
