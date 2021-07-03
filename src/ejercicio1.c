@@ -81,9 +81,9 @@ bool_t ledsOff ( )
 // FUNCIÓN DE ENCENDIDO DE LEDS
 bool_t ledOn ( gpioMap_t led )
 {
-	/* Se apaga cada led disponible en la placa */
+	/* Se enciende led pasado por argumento */
 	if ( !gpioWrite ( led, ON ) ) return FALSE;
-	/* Se verifica el apagado de leds, leyendo el estado GPIO de cada leds */
+	/* Se verifica el apagado del led, leyendo el estado GPIO */
 	if ( gpioRead ( led ) == OFF ) return FALSE;
 	else return TRUE;
 }
