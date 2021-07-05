@@ -1,7 +1,7 @@
 /*=============================================================================
  * Ejercicio 1
- * Author: Martin Rios <jrios@fi.uba.ar>
- * Date: 2021/06/29
+ * Authors: Martin Rios <jrios@fi.uba.ar> - Lucas Zalazar <lucas.zalazar6@gmail.com>
+ * Date: 2021/07/05
  * Version: 1.0
  *===========================================================================*/
 
@@ -40,21 +40,21 @@ int main( void )
     if ( ( TICK_RATE < TICK_RATE_MIN ) || ( TICK_RATE > TICK_RATE_MAX ) )  blinkError( ERROR_TIME );
     if ( !tickConfig ( TICK_RATE ) )  blinkError( ERROR_TIME );
 
-    /*Configuración retardo no bloqueante 150 ms */
+    /*Configuración del retardo no bloqueante que determina el tiempo de transicion entre un led y el siguiente en la secuencia*/
     delayConfig ( &ledDelay, DELAY150 );
 
    // ----- Repeat for ever -------------------------
     while( true ) {
 
-    	/* Lectura de pulsadores de secuencia */
+    	/* Lectura de pulsadores para seleccionar el sentido de la secuencia */
     	if(readKey(KEY1)) invertSequence = false;
     	else if(readKey(KEY4)) invertSequence = true;
 
-    	/* Lectura de pulsadores de retardo no bloqueante */
+    	/* Lectura de pulsadores para seleccionar el tiempo de transicion en la secuencia de leds */
     	if(readKey(KEY2)) delayWrite(&ledDelay, DELAY150);
     	else if(readKey(KEY3)) delayWrite(&ledDelay, DELAY750);
 
-    	/* Captura de errores de secuencia */
+    	/* Se activa el led correspondiente de la secuencia. En caso de error el programa se bloquea quedando el led rojo parpadeando. */
     	if(delayRead(&ledDelay)){
     		if(!ledSequenceOn(ledSequence, invertSequence)) blinkError ( ERROR_SEQ );
     	}
@@ -64,15 +64,15 @@ int main( void )
 }
 
 // FUNCIÓN DE APAGADO DE LEDS
-bool_t ledsOff ( )
+bool_t ledsOff ( const gpioMap_t* _ledSequence )
 {
 	int8_t i = 0;
 
 	for ( i = 0; i < lastLed; i++ ) {
-		/* Se apaga cada led disponible en la placa */
-		if ( !gpioWrite ( ledSequence[i], OFF ) ) return FALSE;
+		/* Se apaga cada led disponible en la secuencia */
+		if ( !gpioWrite ( _ledSequence[i], OFF ) ) return FALSE;
 		/* Se verifica el apagado de leds, leyendo el estado GPIO de cada leds */
-		if ( gpioRead ( ledSequence[i] ) == ON ) return FALSE;
+		if ( gpioRead ( _ledSequence[i] ) == ON ) return FALSE;
 	}
 
 	return TRUE;
@@ -88,14 +88,14 @@ bool_t ledOn ( gpioMap_t led )
 	else return TRUE;
 }
 
-// FUNCIÓN DE SECUENCIA DE LEDS
+// FUNCIÓN PARA ACTIVAR EL LED CORRESPONDIENTE DE LA SECUENCIA DE LEDS
 bool_t ledSequenceOn ( const gpioMap_t* _ledSequence, bool_t invert )
 {
 	static int8_t ledIndex = 0;
 
-	/* Secuencia 2: LED3 -> LED2 -> LED1 -> LEDA -> LED3 -> ... */
+	/* Secuencia 1: LEDB -> LED1 -> LED2 -> LED3 -> LEDB -> ... */
 	if ( invert ) ledIndex--;
-	/* Secuencia 1: LEDA -> LED1 -> LED2 -> LED3 -> LEDA -> ... */
+	/* Secuencia 1 invertida: LED3 -> LED2 -> LED1 -> LEDB -> LED3 -> ... */
 	else ledIndex++;
 
 	/* ledIndex no debe exceder limite superior lastLed */
@@ -104,7 +104,7 @@ bool_t ledSequenceOn ( const gpioMap_t* _ledSequence, bool_t invert )
 	else if ( ledIndex < 0 ) ledIndex = lastLed - 1;
 
 	/* Función de apagado de leds y captura de errores de apagado */
-	if ( !ledsOff() ) blinkError ( ERROR_OFF );
+	if ( !ledsOff(_ledSequence) ) blinkError ( ERROR_OFF );
 
 	/* Funcion de encendido de leds y captura de errores de encendido */
 	if ( !ledOn ( _ledSequence[ledIndex] ) ) blinkError ( ERROR_ON );
@@ -113,13 +113,11 @@ bool_t ledSequenceOn ( const gpioMap_t* _ledSequence, bool_t invert )
 }
 
 // FUNCIÓN INDICACIÓN DE ERROR
-// SE PASA POR ARGUMENTO DIFERENTES TIEMPOS SEGUN TIPO DE ERROR
+// SE PASA POR ARGUMENTO EL TIEMPO DE ENCENDIDO Y APAGADO DEL LED SEGUN EL TIPO DE ERROR QUE SE QUIERA MOSTRAR
 void blinkError ( tick_t delayError )
 {
 	/* El programa se queda aca PARA SIEMPRE */
 	while ( true ) {
-		/* Se apagan todos los leds */
-		ledsOff ( );
 		/* Parpadeo de led Rojo */
 		gpioToggle ( LEDR );
 		/* Retardo bloqueante segun tipo de error */
@@ -127,15 +125,17 @@ void blinkError ( tick_t delayError )
 	}
 }
 
-//FUNCION ANTIREBOTE PARA LECTURA DE TECLAS
+// LECTURA DE TECLAS CON FUNCION ANTIRREBOTE
+// Recibe como argumento el indice correspondiente de la tecla dentro del array de teclas
+// Devuelve TRUE si la tecla fue presionada o FALSE en caso contrario
 bool_t readKey ( uint8_t keyIndex )
 {
 	//DEFINICION DE VARIABLES LOCALES
-	/* */
+	/* Array de estados para asignarle un estado a cada tecla */
 	static dbSt_t debounceState[LAST_KEY] = {WAITING, WAITING, WAITING, WAITING};
-	/* */
+	/* Array de retardos para poder asignarle un tiempo antirrebote a cada tecla presionada*/
 	static delay_t debounceDelay[LAST_KEY];
-	/* */
+	/* Variable que indica si la tecla fue efectivamente presionada */
 	bool_t keyPressed = false;
 
 	/* Cambio del estado de las teclas */
@@ -158,7 +158,7 @@ bool_t readKey ( uint8_t keyIndex )
 	case DEBOUNCING:
 		/* Se consulta si se cumplio el tiempo de antirrebote */
 		if(delayRead(&debounceDelay[keyIndex])){
-			/* Se pregunta por la tecla presionada */
+			/* Si la tecla sigue presionada entonces se concluye que fue efectivamente presionada */
 			if(gpioRead(keyArray[keyIndex]) == PRESSED) keyPressed = TRUE;
 			/* Cambio de estado de tecla */
 			debounceState[keyIndex] = WAITING;

@@ -22,8 +22,8 @@
 // TIEMPOS DE ERROR (ms)
 #define ERROR_OFF		500
 #define ERROR_ON		1000
-#define ERROR_SEQ		1500
-#define ERROR_TIME		2000
+#define ERROR_SEQ		2000
+#define ERROR_TIME		4000
 
 // TECLAS
 #define KEY1			0
@@ -46,7 +46,7 @@ typedef enum
 }dbSt_t;
 
 
-bool_t ledsOff ( );
+bool_t ledsOff ( const gpioMap_t* _ledSequence );
 bool_t ledOn ( gpioMap_t led );
 void blinkError ( tick_t delayError );
 bool_t readKey ( uint8_t keyIndex );
