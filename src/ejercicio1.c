@@ -14,14 +14,6 @@ typedef struct{
 	const uint8_t const* ptrUltimoLed;
 } controlSecuencia_t;
 
-/*Arreglo del tipo gpioMap_t para la secuencia de leds */
-const gpioMap_t ledSequence[] = { LEDB, LED1, LED2, LED3 };
-
-/* Cantidad de elementos del arreglo ledSequence */
-const uint8_t lastLed = sizeof ( ledSequence ) / sizeof ( gpioMap_t );
-
-/*Arreglo del tipo gpioMap_t para teclas */
-const gpioMap_t keyArray[] = { TEC1, TEC2, TEC3, TEC4 };
 
 /* FUNCION PRINCIPAL */
 int main( void )
@@ -31,14 +23,24 @@ int main( void )
     boardInit();
 
     // DEFINICION DE VARIABLES
+    /*Arreglo del tipo gpioMap_t para la secuencia de leds */
+    const gpioMap_t ledSequence[] = { LEDB, LED1, LED2, LED3 };
+
+    /*Arreglo del tipo gpioMap_t para teclas */
+    const gpioMap_t keyArray[] = { TEC1, TEC2, TEC3, TEC4 };
+
     /* Variables del tipo tick para retardos */
     delay_t ledDelay;
+
     /* Varibles del tipo booleano */
     bool_t invertSequence = false;
 
     /* Verificación TICK_RATE rango permitido de tiempo: 1 a 50 ms */
     if ( ( TICK_RATE < TICK_RATE_MIN ) || ( TICK_RATE > TICK_RATE_MAX ) )  blinkError( ERROR_TIME );
     if ( !tickConfig ( TICK_RATE ) )  blinkError( ERROR_TIME );
+
+	/* Función de apagado de leds y captura de errores de apagado */
+	if ( !ledsOff( ledSequence) ) blinkError ( ERROR_OFF );
 
     /*Configuración del retardo no bloqueante que determina el tiempo de transicion entre un led y el siguiente en la secuencia*/
     delayConfig ( &ledDelay, DELAY150 );
@@ -47,12 +49,12 @@ int main( void )
     while( true ) {
 
     	/* Lectura de pulsadores para seleccionar el sentido de la secuencia */
-    	if(readKey(KEY1)) invertSequence = false;
-    	else if(readKey(KEY4)) invertSequence = true;
+    	if(readKey(keyArray, KEY1)) invertSequence = false;
+    	else if(readKey(keyArray, KEY4)) invertSequence = true;
 
     	/* Lectura de pulsadores para seleccionar el tiempo de transicion en la secuencia de leds */
-    	if(readKey(KEY2)) delayWrite(&ledDelay, DELAY150);
-    	else if(readKey(KEY3)) delayWrite(&ledDelay, DELAY750);
+    	if(readKey(keyArray, KEY2)) delayWrite(&ledDelay, DELAY150);
+    	else if(readKey(keyArray, KEY3)) delayWrite(&ledDelay, DELAY750);
 
     	/* Se activa el led correspondiente de la secuencia. En caso de error el programa se bloquea quedando el led rojo parpadeando. */
     	if(delayRead(&ledDelay)){
@@ -63,12 +65,17 @@ int main( void )
     return 0;
 }
 
-// FUNCIÓN DE APAGADO DE LEDS
+//***** FUNCIÓN DE APAGADO DE LEDS *************************************************************
+// Recibe: un puntero a la secuencia de LEDs.
+// Devuelve: TRUE si pudo apagar correctamente los LEDs o FALSE en caso contrario.
+// *********************************************************************************************
 bool_t ledsOff ( const gpioMap_t* _ledSequence )
 {
 	int8_t i = 0;
+	/* Cantidad de elementos en la secuencia de LEDs*/
+	const uint8_t _lastLed = sizeof ( _ledSequence ) / sizeof ( gpioMap_t );
 
-	for ( i = 0; i < lastLed; i++ ) {
+	for ( i = 0; i < _lastLed; i++ ) {
 		/* Se apaga cada led disponible en la secuencia */
 		if ( !gpioWrite ( _ledSequence[i], OFF ) ) return FALSE;
 		/* Se verifica el apagado de leds, leyendo el estado GPIO de cada leds */
@@ -78,7 +85,10 @@ bool_t ledsOff ( const gpioMap_t* _ledSequence )
 	return TRUE;
 }
 
-// FUNCIÓN DE ENCENDIDO DE LEDS
+//***** FUNCIÓN DE ENCENDIDO DE LEDS ***********************************************************
+// Recibe: el numero de pin correspondiente a la GPIO del LED que se quiere encender
+// Devuelve: TRUE en caso de encender correctamente el LED o FALSE en caso contrario.
+// *********************************************************************************************
 bool_t ledOn ( gpioMap_t led )
 {
 	/* Se enciende led pasado por argumento */
@@ -88,10 +98,15 @@ bool_t ledOn ( gpioMap_t led )
 	else return TRUE;
 }
 
-// FUNCIÓN PARA ACTIVAR EL LED CORRESPONDIENTE DE LA SECUENCIA DE LEDS
+//***** FUNCIÓN PARA ACTIVAR EL LED CORRESPONDIENTE DE LA SECUENCIA DE LEDS ********************
+// Recibe: Argumento 1: un puntero a la secuencia de LEDs que se quiere activar. Argumento 2: TRUE para sentido normal de la secuencia, FALSE para sentido inverso.
+// Devuelve: TRUE en caso de encender correctamente el LED o FALSE en caso contrario.
+// *********************************************************************************************
 bool_t ledSequenceOn ( const gpioMap_t* _ledSequence, bool_t invert )
 {
 	static int8_t ledIndex = 0;
+	/* Cantidad de elementos en la secuencia de LEDs*/
+	const uint8_t _lastLed = sizeof ( _ledSequence ) / sizeof ( gpioMap_t );
 
 	/* Secuencia 1: LEDB -> LED1 -> LED2 -> LED3 -> LEDB -> ... */
 	if ( invert ) ledIndex--;
@@ -99,21 +114,23 @@ bool_t ledSequenceOn ( const gpioMap_t* _ledSequence, bool_t invert )
 	else ledIndex++;
 
 	/* ledIndex no debe exceder limite superior lastLed */
-	if ( ledIndex >= lastLed ) ledIndex = 0;
+	if ( ledIndex >= _lastLed ) ledIndex = 0;
 	/* ledIndex no debe exceder limite inferior 0 */
-	else if ( ledIndex < 0 ) ledIndex = lastLed - 1;
+	else if ( ledIndex < 0 ) ledIndex = _lastLed - 1;
 
-	/* Función de apagado de leds y captura de errores de apagado */
-	if ( !ledsOff(_ledSequence) ) blinkError ( ERROR_OFF );
+	/* Se apagan todos los LEDs de la secuencia*/
+	if ( !ledsOff(_ledSequence) ) return FALSE;
 
-	/* Funcion de encendido de leds y captura de errores de encendido */
-	if ( !ledOn ( _ledSequence[ledIndex] ) ) blinkError ( ERROR_ON );
+	/* Se enciende el LED correspondiente de la secuencia */
+	if ( !ledOn ( _ledSequence[ledIndex] ) ) return FALSE;
 
 	return TRUE;
 }
 
-// FUNCIÓN INDICACIÓN DE ERROR
-// SE PASA POR ARGUMENTO EL TIEMPO DE ENCENDIDO Y APAGADO DEL LED SEGUN EL TIPO DE ERROR QUE SE QUIERA MOSTRAR
+//***** FUNCIÓN INDICACIÓN DE ERROR ************************************************************
+// Recibe: El tiempo de encendido y apagado del led segun el tipo de error que se quiera mostrar
+// Devuelve: Nada
+// *********************************************************************************************
 void blinkError ( tick_t delayError )
 {
 	/* El programa se queda aca PARA SIEMPRE */
@@ -125,11 +142,15 @@ void blinkError ( tick_t delayError )
 	}
 }
 
-// LECTURA DE TECLAS CON FUNCION ANTIRREBOTE
-// Recibe como argumento el indice correspondiente de la tecla dentro del array de teclas
-// Devuelve TRUE si la tecla fue presionada o FALSE en caso contrario
-bool_t readKey ( uint8_t keyIndex )
+//***** LECTURA DE TECLAS CON FUNCION ANTIRREBOTE **********************************************
+// Recibe: el arreglo de teclas y el indice correspondiente de la tecla dentro del arreglo
+// Devuelve: TRUE si la tecla fue presionada o FALSE en caso contrario o si hubo algun error
+// *********************************************************************************************
+bool_t readKey ( const gpioMap_t *_keyArray, uint8_t keyIndex )
 {
+	// Se chequea que la cantidad de teclas definidas en el arreglo sea menor a la cantidad de teclas permitidas
+	if((sizeof ( _keyArray ) / sizeof ( gpioMap_t )) > LAST_KEY) return FALSE;
+
 	//DEFINICION DE VARIABLES LOCALES
 	/* Array de estados para asignarle un estado a cada tecla */
 	static dbSt_t debounceState[LAST_KEY] = {WAITING, WAITING, WAITING, WAITING};
@@ -145,7 +166,7 @@ bool_t readKey ( uint8_t keyIndex )
 	/* Si fue presionada alguna tecla, pasa al estado de DEBOUNCING */
 	case WAITING:
 		/* Se consulta por la tecla presionada */
-		if(gpioRead(keyArray[keyIndex]) == PRESSED){
+		if(gpioRead(_keyArray[keyIndex]) == PRESSED){
 			/* Cambio de estado de tecla */
 			debounceState[keyIndex] = DEBOUNCING;
 			/* Se configura tiempo de antirrebote */
@@ -159,7 +180,7 @@ bool_t readKey ( uint8_t keyIndex )
 		/* Se consulta si se cumplio el tiempo de antirrebote */
 		if(delayRead(&debounceDelay[keyIndex])){
 			/* Si la tecla sigue presionada entonces se concluye que fue efectivamente presionada */
-			if(gpioRead(keyArray[keyIndex]) == PRESSED) keyPressed = TRUE;
+			if(gpioRead(_keyArray[keyIndex]) == PRESSED) keyPressed = TRUE;
 			/* Cambio de estado de tecla */
 			debounceState[keyIndex] = WAITING;
 		}

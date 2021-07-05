@@ -49,7 +49,7 @@ typedef enum
 bool_t ledsOff ( const gpioMap_t* _ledSequence );
 bool_t ledOn ( gpioMap_t led );
 void blinkError ( tick_t delayError );
-bool_t readKey ( uint8_t keyIndex );
+bool_t readKey ( const gpioMap_t *_keyArray, uint8_t keyIndex );
 bool_t ledSequenceOn ( const gpioMap_t* _ledSequence, bool_t invert );
 
 #endif /* __EJERCICIO1_H__ */
