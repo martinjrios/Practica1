@@ -7,6 +7,7 @@
 #ifndef __EJERCICIO1_H__
 #define __EJERCICIO1_H__
 
+//#define OPCIONAL_3	// Descomentar para correr el punto opcional 3
 #define OPCIONAL_4
 
 #define TICK_RATE		1 // Default 1ms
