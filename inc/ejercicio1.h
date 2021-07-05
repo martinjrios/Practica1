@@ -1,11 +1,13 @@
 /*=============================================================================
- * Author: Martin Rios <jrios@fi.uba.ar>
- * Date: 2021/06/29
+ * Authors: Martin Rios <jrios@fi.uba.ar> - Lucas Zalazar <lucas.zalazar6@gmail.com>
+ * Date: 2021/07/05
  * Version: 1.0
  *===========================================================================*/
 
 #ifndef __EJERCICIO1_H__
 #define __EJERCICIO1_H__
+
+#define OPCIONAL_4
 
 #define TICK_RATE		1 // Default 1ms
 
@@ -45,11 +47,25 @@ typedef enum
 	DEBOUNCING,
 }dbSt_t;
 
+#ifdef OPCIONAL_4
+/* Estructura para controlar la secuencia de LEDs */
+typedef struct{
+	const gpioMap_t *ledSequence;	// Puntero a la secuencia de LEDs que se quiere activar
+	uint8_t lastLed;				// Cantidad de elementos en la secuencia de LEDs
+	uint8_t ledIndex;				// Posicion en la secuencia del LED que esta siendo activado
+	bool_t inverted;				// Sentido de la secuencia
+} controlSequence_t;
+#endif
 
-bool_t ledsOff ( const gpioMap_t* _ledSequence );
+bool_t ledsOff ( const gpioMap_t* _ledSequence, const uint8_t _sequenceLength );
 bool_t ledOn ( gpioMap_t led );
 void blinkError ( tick_t delayError );
 bool_t readKey ( const gpioMap_t *_keyArray, uint8_t keyIndex );
-bool_t ledSequenceOn ( const gpioMap_t* _ledSequence, bool_t invert );
+#ifdef OPCIONAL_3
+bool_t ledSequenceOn ( const gpioMap_t* _ledSequence, const uint8_t _sequenceLength, bool_t invert );
+#endif
+#ifdef OPCIONAL_4
+bool_t ledSequenceOn(controlSequence_t *controlSequence);
+#endif
 
 #endif /* __EJERCICIO1_H__ */
